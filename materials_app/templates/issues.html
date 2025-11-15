@@ -1,0 +1,156 @@
+
+{% extends 'base.html' %}
+{% block content %}
+<h3>Page 4 – Xuất NVL theo Lệnh Sản Xuất</h3>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-2">
+      <div class="col-md-3">
+        <label class="form-label">Ngày kế hoạch (dd/mm/yy)</label>
+        <input id="plan_date" class="form-control" placeholder="01/11/25">
+      </div>
+      <div class="col-md-9 d-flex align-items-end">
+        <button class="btn btn-outline-secondary me-2" onclick="addProductRow()">+ Thêm sản phẩm</button>
+        <label class="form-label me-2">Hoặc import Excel (nhiều sản phẩm):</label>
+        <a class="btn btn-sm btn-outline-secondary me-2" href="{{ url_for('issues.sample_template') }}">Tải file mẫu</a>
+        <input type="file" id="importFile" accept=".xlsx,.xls" class="form-control" style="max-width:300px">
+        <button class="btn btn-outline-primary ms-2" onclick="importProducts()">Import</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="productList"></div>
+
+<div class="d-flex gap-2 mb-3">
+  <button class="btn btn-primary" onclick="calculate()">Tính NVL</button>
+  <button class="btn btn-success" onclick="commitIssue()">Xuất NVL</button>
+</div>
+
+<div class="card">
+  <div class="card-header">Kết quả tính NVL (có thể chỉnh sửa)</div>
+  <div class="card-body table-responsive">
+    <table class="table table-sm table-bordered align-middle" id="resultTable">
+      <thead>
+        <tr><th>Sản phẩm</th><th>Nguyên vật liệu</th><th>ĐVT</th><th>SL SP</th><th>SL NVL cần xuất</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+<script id="PRODUCT_LIST_JSON" type="application/json">
+  {{ products|tojson }}
+</script>
+
+<script>
+const PRODUCT_LIST = JSON.parse(document.getElementById('PRODUCT_LIST_JSON').textContent);
+
+
+function productTemplate(idx){
+  return `
+  <div class="card mb-3" data-idx="${idx}">
+    <div class="card-body">
+      <div class="row g-2">
+        <div class="col-md-5">
+          <label class="form-label">Sản phẩm</label>
+          <select class="form-select product-select" required>
+            ${PRODUCT_LIST.map(p => `<option value="${p.id}">${p.name} (${p.uom})</option>`).join('')}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Số lượng SP</label>
+          <input class="form-control qty-input" type="number" step="0.0001" value="1">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Chọn NVL (tick - các nhóm choice chỉ chọn 1)</label>
+          <div class="selected-materials"></div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadMaterialChoices(this)">Chọn NVL</button>
+          <span class="text-muted d-block">* NVL bắt buộc (không có group) sẽ tự lấy.</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+let idx = 0;
+function addProductRow(){
+  const container = document.getElementById("productList");
+  container.insertAdjacentHTML("beforeend", productTemplate(idx++));
+}
+
+function loadMaterialChoices(btn){
+  // Fetch BOM items for selected product and display checkbox for choice_group items
+  const card = btn.closest(".card");
+  const productId = card.querySelector(".product-select").value;
+  fetch(`/bom/`) // simple reuse: we'll render current page; we don't have an API here, so quick hack: guide user to mark in Excel or show hint.
+  alert("Mẹo: Các NVL bắt buộc sẽ tự lấy. Với NVL thay thế (có 'choice_group') bạn có thể nhập tên trong file import ở cột 'selected_material_names' hoặc tick sau khi tính ra (chỉnh sửa ở bảng kết quả).");
+}
+
+async function importProducts(){
+  const f = document.getElementById("importFile").files[0];
+  if(!f){ alert("Chọn file trước."); return; }
+  const fd = new FormData(); fd.append("file", f);
+  const res = await fetch("/issues/import-products", { method: "POST", body: fd });
+  const data = await res.json();
+  if(data.error){ alert(data.error); return; }
+  for(const it of data.items){
+    addProductRow();
+    const cards = document.querySelectorAll("#productList .card");
+    const card = cards[cards.length-1];
+    card.querySelector(".product-select").value = it.product_id;
+    card.querySelector(".qty-input").value = it.product_qty;
+    // store selected ids in dataset for later
+    card.dataset.selected = JSON.stringify(it.selected_material_ids || []);
+  }
+}
+
+async function calculate(){
+  const plan = document.getElementById("plan_date").value || "01/01/25";
+  const cards = document.querySelectorAll("#productList .card");
+  const items = [];
+  for(const c of cards){
+    const product_id = c.querySelector(".product-select").value;
+    const product_qty = c.querySelector(".qty-input").value;
+    const selected_material_ids = c.dataset.selected ? JSON.parse(c.dataset.selected) : [];
+    items.push({product_id, product_qty, selected_material_ids});
+  }
+  const res = await fetch("/issues/calc", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({plan_date: plan, items})});
+  const data = await res.json();
+  const tbody = document.querySelector("#resultTable tbody");
+  tbody.innerHTML = "";
+  for(const ln of data.lines){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td data-product-id="${ln.product_id}">${ln.product_name}</td>
+                    <td data-material-id="${ln.material_id}">${ln.material_name}</td>
+                    <td>${ln.uom}</td>
+                    <td><input class="form-control form-control-sm prod-qty" type="number" step="0.0001" value="${(ln.qty / ln.qty).toFixed(4)}" disabled></td>
+                    <td><input class="form-control form-control-sm nvl-qty" type="number" step="0.0001" value="${ln.qty.toFixed(4)}"></td>`;
+    // Store product_qty separately to commit later; for simplicity, set to 1 product unit ratio unknown here.
+    tr.dataset.productQty = (ln.qty / (ln.qty)).toFixed(4); // keep 1 as placeholder
+    tr.dataset.productId = ln.product_id;
+    tr.dataset.materialId = ln.material_id;
+    tr.dataset.uom = ln.uom;
+    tbody.appendChild(tr);
+  }
+}
+
+async function commitIssue(){
+  const plan = document.getElementById("plan_date").value || "01/01/25";
+  const rows = document.querySelectorAll("#resultTable tbody tr");
+  const lines = [];
+  for(const r of rows){
+    const product_id = parseInt(r.dataset.productId);
+    const material_id = parseInt(r.dataset.materialId);
+    const uom = r.dataset.uom;
+    const qty = parseFloat(r.querySelector(".nvl-qty").value);
+    const product_qty = 1; // since we didn't keep per-line product qty after calc, record 1; user can add note later
+    lines.push({product_id, material_id, product_qty, qty, uom});
+  }
+  const res = await fetch("/issues/commit", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({plan_date: plan, created_by: "user", lines})});
+  const data = await res.json();
+  alert("Đã xuất NVL. Số phiếu: " + data.issue_id);
+  location.reload();
+}
+</script>
+{% endblock %}

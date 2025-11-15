@@ -1,0 +1,3 @@
+@echo off
+echo Running DB backup...
+F:\Production\app\myproject\.venv\Scripts\python.exe F:\Production\app\myproject\backup_db.py

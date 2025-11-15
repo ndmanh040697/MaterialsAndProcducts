@@ -1,0 +1,4 @@
+
+table td, table th { white-space: nowrap; }
+.card { border-radius: 1rem; }
+.btn { border-radius: 0.75rem; }

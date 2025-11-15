@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: my-flask-inventory
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn myproject:app"  # hoặc app:app, hoặc 'myproject:create_app()'
+    autoDeploy: true
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      # Nếu dùng SQLite + Persistent Disk (khuyến nghị xem mục 4)
+      - key: DATABASE_URL
+        value: sqlite:////var/data/app.db
+    # Nếu bạn gắn Persistent Disk (mục 4), khai báo mountPath như dưới:
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1

@@ -1,0 +1,101 @@
+
+{% extends 'base.html' %}
+{% block content %}
+<h3>Page 1 – Định mức NVL</h3>
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header">Thêm định mức</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('bom.bom_add') }}">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Tên sản phẩm</label>
+              <select name="product_id" class="form-select" required>
+                {% for p in products %}
+                <option value="{{p.id}}">{{p.name}} ({{p.uom}})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Tên nguyên vật liệu</label>
+              <select name="material_id" class="form-select" required>
+                {% for m in materials %}
+                <option value="{{m.id}}">{{m.name}} ({{m.uom}})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Định mức / 1 đơn vị SP</label>
+              <input type="number" step="0.0001" class="form-control" name="qty_per_unit" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Nhóm lựa chọn (tùy chọn)</label>
+              <input type="text" class="form-control" name="choice_group" placeholder="VD: CORE">
+              <div class="form-text">Cùng group nghĩa là chọn 1 trong nhiều (vd: lõi A hoặc lõi B).</div>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <button class="btn btn-primary w-100">Thêm</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+  <span>Import từ Excel</span>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('bom.sample_template') }}">Tải file mẫu</a>
+</div>
+
+      <div class="card-body">
+        <form method="post" action="{{ url_for('bom.import_bom') }}" enctype="multipart/form-data">
+          <div class="row g-2">
+            <div class="col-md-8">
+              <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <button class="btn btn-secondary w-100">Import</button>
+            </div>
+          </div>
+          <div class="form-text">
+            Cột cần có: product_name, product_uom, material_name, material_uom, qty_per_unit, choice_group (optional)
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Danh sách định mức</div>
+  <div class="card-body table-responsive">
+    <table class="table table-striped table-sm align-middle">
+      <thead>
+        <tr>
+          <th>ID</th><th>Sản phẩm</th><th>ĐVT SP</th><th>Nguyên vật liệu</th><th>ĐVT NVL</th><th>Định mức</th><th>Nhóm chọn</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>{{ r.product }}</td>
+          <td>{{ r.product_uom }}</td>
+          <td>{{ r.material }}</td>
+          <td>{{ r.material_uom }}</td>
+          <td>{{ r.qty_per_unit }}</td>
+          <td>{{ r.choice_group }}</td>
+          <td>
+            <form method="post" action="{{ url_for('bom.bom_delete', id=r.id) }}" onsubmit="return confirm('Xóa?')">
+              <button class="btn btn-sm btn-outline-danger">Xóa</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
