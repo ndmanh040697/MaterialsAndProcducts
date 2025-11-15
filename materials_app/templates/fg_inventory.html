@@ -250,10 +250,33 @@
     }
 
     function search(q){
-      const nq = q.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-      if(!nq) return [];
-      return products.filter(m => m.norm.includes(nq)).slice(0,10);
+      let text = q.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+      if (!text) return [];
+
+      // tách từ: "2 lớp shelton giấy vệ sinh" → ["2","lop","shelton","giay","ve","sinh"]
+      let parts = text.split(/\s+/).filter(x => x);
+
+      return products
+        .map(p => {
+          let score = 0;
+          let matched = true;
+
+          for (let kw of parts) {
+            if (p.norm.includes(kw)) {
+              score++;
+            } else {
+              matched = false;
+              break;
+            }
+          }
+
+          return matched ? { ...p, score } : null;
+        })
+        .filter(x => x !== null)
+        .sort((a, b) => b.score - a.score)   // ưu tiên match nhiều từ nhất
+        .slice(0, 12);
     }
+
 
     input.addEventListener('input',()=>{
       const q = input.value;

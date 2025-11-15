@@ -259,13 +259,7 @@
   });
 
   let locked = false; // đã chọn xong (không tự đổi nữa)
-
-  function search(q){
-    const nq = normalize(q);
-    if(!nq) return [];
-    const starts = ITEMS.filter(x => x.norm.startsWith(nq));
-    return (starts.length ? starts : ITEMS.filter(x => x.norm.includes(nq))).slice(0, 10);
-  }
+  
   function show(list){
     if(!list.length){ listEl.style.display='none'; listEl.innerHTML=''; return; }
     listEl.innerHTML = list.map(it =>
@@ -451,10 +445,35 @@
     }
 
     function search(q){
-      const nq = q.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-      if(!nq) return [];
-      return materials.filter(m => m.norm.includes(nq));
-    }
+      let text = q.normalize('NFD')
+                  .replace(/[\u0300-\u036f]/g,'')
+                  .toLowerCase().trim();
+      if (!text) return [];
+
+      // "giay shelton 2 lop" → ["giay","shelton","2","lop"]
+      let parts = text.split(/\s+/).filter(x => x);
+
+      return materials
+        .map(m => {
+          let score = 0;
+          let ok = true;
+
+          for (let kw of parts) {
+            if (m.norm.includes(kw)) {
+              score++;
+            } else {
+              ok = false;
+              break;
+            }
+          }
+
+          return ok ? { ...m, score } : null;
+        })
+        .filter(x => x !== null)
+        .sort((a, b) => b.score - a.score)   // ưu tiên match nhiều từ nhất
+        .slice(0, 12);
+      }
+
 
     input.addEventListener('input',()=>{
       const q = input.value;
